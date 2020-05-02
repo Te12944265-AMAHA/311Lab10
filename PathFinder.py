@@ -408,7 +408,7 @@ def find_path(grids, start_idx, end_idx):
     return None
 
 # L: wheelbase; start, end: tuple; obstacles: list of Obstacles
-def get_path(L, width, height, dx, start, end, obstacles, visualize=True):
+def get_path(L, width, height, dx, start, end, obstacles, visualize=False):
     # First, discretize the map
     # we need (width / dx) by (height / dx) grids
     start_idx = (round(start[1] / dx), round(start[0] / dx))
