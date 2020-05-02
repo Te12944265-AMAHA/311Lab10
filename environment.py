@@ -9,19 +9,18 @@ class Floor(object):
     def __init__(self, width, height, floor=0):
         self.width = width
         self.height = height
-        self.bins = {}
+        self.bins = []
         # obstacles include walls but exclude robots and bins
-        self.obstacle_pos = {} # set of pixels wrt the floor
         self.obstacles = []
-        self.chargers = {}
+        self.chargers = []
         self.dump_pos = []
-        self.initialize()
+    
 
-    def add_bin(self, bin):
-        self.bins.add(bin)
+    def add_bin(self, b):
+        self.bins.append(b)
 
     def add_charger(self, charger):
-        self.chargers.add(charger)
+        self.chargers.append(charger)
 
     def add_dump_pos(self, pos):
         self.dump_pos.append(pos)
@@ -60,38 +59,42 @@ class Floor(object):
             return None
 
     def initialize(self):
-        # TODO: add default obstacles, chargers, bins, dump_pos
+        # Add dump position
         dump_pos = Position((140, 50), floor)
         floor.add_dump_pos(dump_pos)
-        pass
-
-    def draw(canvas):
-        canvas.create_rectangle(5, 5, 25, 25)
+        # Add obstacles. defined as (left_x, top_y, right_x, bottom_y) in tk frame
+        self.obstacles = [(200, 0, 220, 210), (220, 190, 320, 210), (100, 100, 200, 120),
+                          (280, 320, 300, 500), (300, 400, 450, 420), (100, 320, 280, 340),
+                          (460, 0, 480, 100), (300, 80, 460, 100),
+                          (450, 240, 800, 260), (600, 80, 620, 420)]
+        # Add bins
         bin_centers = [(440, 60), (320, 380), (580, 220), (640, 280), (780, 220)]
-        # bin original pos
-        for i in range(5):
-            x, y = bin_centers[i]
+        for i in range(len(bin_centers)):
+            loaded = random.random() > 0.2 # the bin has 80% chance to be loaded
+            b = Bin(bin_centers[i], num=i, floor=self, loaded)
+            self.add_bin(b)
+        # Add chargers
+        charger_centers = [(35, 340+40*i) for i in range(4)]
+        for i in range(len(charger_centers)):
+            c = Charger(charger_centers[i], num=i, floor=self)
+            self.add_charger(c)
+        
+
+    # draw the map of the floor (not including the robots/bins)
+    def draw(canvas):
+        # draw bin original pos
+        for b in self.bins:
+            x, y = b.original_pos
             canvas.create_rectangle(x-10, y-10, x+10, y+10, width=1)
-
-        canvas.create_oval(100, 10, 180, 90, width=5) # dumping area
-        # charging area
-        for i in range(4):
-            center = 340 + 40 * i
-            canvas.create_oval(20, center-15, 50, center+15, width=2)
-
-        canvas.create_rectangle(200, 0, 220, 210, fill='black', width=0)
-        canvas.create_rectangle(220, 190, 320, 210, fill='black', width=0)
-        canvas.create_rectangle(100, 100, 200, 120, fill='black', width=0)
-
-        canvas.create_rectangle(280, 320, 300, 500, fill='black', width=0)
-        canvas.create_rectangle(300, 400, 450, 420, fill='black', width=0)
-        canvas.create_rectangle(100, 320, 280, 340, fill='black', width=0)
-
-        canvas.create_rectangle(460, 0, 480, 100, fill='black', width=0)
-        canvas.create_rectangle(300, 80, 460, 100, fill='black', width=0)
-
-        canvas.create_rectangle(450, 240, 800, 260, fill='black', width=0)
-        canvas.create_rectangle(600, 80, 620, 420, fill='black', width=0)
+        # dumping area
+        canvas.create_oval(100, 10, 180, 90, width=5) 
+        # draw charging area
+        for c in self.charger:
+            x, y = c.pos
+            canvas.create_oval(x-15, y-15, x+15, y+15, width=2)
+        # draw obstacles
+        for obs in self.obstacles)
+            canvas.create_rectangle(obs, fill='black', width=0)
 
 
 class Position(object):

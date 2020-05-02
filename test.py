@@ -16,8 +16,8 @@ def draw(canvas):
         center = 340 + 40 * i
         canvas.create_oval(20, center-15, 50, center+15, width=2)
 
-    canvas.create_rectangle(200, 0, 220, 210, fill='black', width=0)
-    canvas.create_rectangle(220, 190, 320, 210, fill='black', width=0)
+    canvas.create_rectangle([200, 0, 220, 210], fill='black', width=0)
+    canvas.create_rectangle([220, 190, 320, 210], fill='black', width=0)
     canvas.create_rectangle(100, 100, 200, 120, fill='black', width=0)
 
     canvas.create_rectangle(280, 320, 300, 500, fill='black', width=0)
