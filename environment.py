@@ -53,9 +53,22 @@ class Floor(object):
     def get_waiting_bins(self):
         b = []
         for bi in self.bins:
-            if bi.is_loaded():
+            if bi.collector == None and bi.loaded:
                 b.append(bi)
         return b
+
+    def get_free_bins(self):
+        b = []
+        for bi in self.bins:
+            if bi.collector == None and bi.loaded == False:
+                b.append(bi)
+        return b
+
+    def load_free_bins(self):
+        b = self.get_free_bins()
+        for bi in b:
+            if random.random() > 0.4:
+                bi.load_bin()
 
     def get_random_waiting_bin(self):
         b = self.get_waiting_bins()
@@ -196,6 +209,7 @@ class Robot(Position):
         self.state = None # move, collect, (*elevator,) dump, to_charge, charge, None
         self.error = False
         self.job = None # will be assigned a Bin
+        self.charger = None
         self.L = 20 # wheelbase is 20 pixels
         self.dx = 10 # descretization resolution
         self.battery = 10000
@@ -260,6 +274,16 @@ class Robot(Position):
         self.job = b[bin_num] # bin_num is not the num of the Bin!
         self.job.set_collector(self)
 
+    def assign_charger(self):
+        print('assigning job for robot #%d'% (self.num))
+        c = self.floor.get_available_chargers()
+        charger_num = self.approach(c)
+        if charger_num == -1:
+            return
+        charger = c[charger_num]
+        charger.loaded = True
+        self.charger = charger
+
     def update_pos(self):
         if self.state == 'move' or self.state == 'to_charge':
             if self.path != []:
@@ -323,6 +347,7 @@ class Robot(Position):
                 self.timer = 0
         elif self.state == 'move' and self.job != None and self.path == [] and self.job.state == 'carry' and self.job.loaded == False:
             self.state = None
+            self.job.collector = None
             self.job.operate_bin(None)
             self.job = None
 
@@ -337,7 +362,7 @@ class Robot(Position):
         print('robot #%d: state = %s, job = %s, battery = %d, path=[]? %d' %(self.num, self.state, self.job, self.battery, self.path == []))
 
     def draw(self, canvas):
-        color = 'green'
+        color = 'SpringGreen2'
         if self.error == True:
             color = 'red'
         elif self.low_power == True:
@@ -345,7 +370,7 @@ class Robot(Position):
             if self.state == 'charge' and self.on:
                 color = 'green'
         x, y = self.pos
-        canvas.create_oval(x-10, y-10, x+10, y+10, fill=color, width=0)
+        canvas.create_oval(x-8, y-8, x+8, y+8, fill=color, width=0)
 
 
 # this environment has 1 floor, 5 bins, 4 chargers, 1 dump pos, and 3 robots
@@ -361,7 +386,7 @@ class Environment(object):
         self.robots = dict()
         self.bins = self.floor.get_bins()
         self.running = False
-
+        self.timer = 0
 
     def add_robots(self, num):
         for i in range(num):
@@ -397,6 +422,7 @@ class Environment(object):
                 robot.update()
             for b in self.bins:
                 b.update_pos()
+        self.timer += 1
 
     def draw(self, canvas):
         self.floor.draw(canvas)
@@ -411,7 +437,7 @@ class Environment(object):
 def init(data):
     data.env = Environment()
     data.env.create_cspace()
-    data.env.add_robots(1)
+    data.env.add_robots(3)
     data.env.start()
 
 
@@ -425,7 +451,10 @@ def keyPressed(event, data):
     pass
 
 def timerFired(data):
+    print(data.env.timer)
     data.env.update()
+    if data.env.timer % 200 == 0:
+        data.env.floor.load_free_bins()
 
 
 def run(width=1000, height=500):
