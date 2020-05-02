@@ -4,12 +4,12 @@
 from tkinter import *
 import math
 
-def draw_pixel(canvas, i, j, d, color="black", w=0, out='black'): # i j are world coord, not tk coord
-    startx = j * d
-    endx = (j+1) * d
-    starty = i * d
-    endy = (i+1) * d
-    canvas.create_rectangle(startx, starty, endx, endy, fill=color, width=w, outline=out)
+def draw_pixel(canvas, i, j, d, color="black", w=0): # i j are in tk coord
+    startx = i * d
+    endx = (i+1) * d
+    starty = j * d
+    endy = (j+1) * d
+    canvas.create_rectangle(startx, starty, endx, endy, fill=color, width=w)
 
 def draw_line(canvas, p1, p2, d, color="black", thick=2):
     startx = p1[1] * d + round(d/2)

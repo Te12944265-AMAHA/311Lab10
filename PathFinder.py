@@ -3,16 +3,16 @@ import matplotlib.pyplot as plt
 import math
 import copy
 
-# Check if a circle with center (h, k) and radius ee_rad intersects
+# Check if a circle with center (h, k) and radius r intersects
 # the line segment with endpoints (x0, y0) and (x1, y1)
 # (credits to FRC team Dawgma and Stack Overflow)
-def circle_intersect_segment(h, k, x0, y0, x1, y1):
+def circle_intersect_segment(h, k, r, x0, y0, x1, y1):
     d = [x1 - x0, y1 - y0]
     f = [x0 - h, y0 - k]
 
     a = d[0]**2 + d[1]**2
     b = 2*(f[0]*d[0] + f[1]*d[1])
-    c = f[0]**2 + f[1]**2 - ee_rad**2
+    c = f[0]**2 + f[1]**2 - r**2
     discrim = b**2 - 4*a*c
 
     if discrim < 0:
@@ -24,23 +24,30 @@ def circle_intersect_segment(h, k, x0, y0, x1, y1):
         return (t1 >= 0 and t1 <= 1) or (t2 >= 0 and t2 <= 1)
 
 # Does the position [x, y] intersect the given obstacle?
-def position_intersect(position, obstacle):
+def position_intersect(position, obstacle, r):
     # Check if the circle given by the end effector intersects any obstacle boundary
     h    = position[0] # x
     k    = position[1] # y
     obs0 = obstacle[0] # left
-    obs1 = obstacle[1] # right
-    obs2 = obstacle[2] # bottom
-    obs3 = obstacle[3] # top
+    obs1 = obstacle[2] # right
+    obs2 = obstacle[3] # bottom
+    obs3 = obstacle[1] # top
 
-    left_intersect   = circle_intersect_segment(h, k, obs0, obs2, obs0, obs3)
-    right_intersect  = circle_intersect_segment(h, k, obs1, obs2, obs1, obs3)
-    bottom_intersect = circle_intersect_segment(h, k, obs0, obs2, obs1, obs2)
-    top_intersect    = circle_intersect_segment(h, k, obs0, obs3, obs1, obs3)
+    left_intersect   = circle_intersect_segment(h, k, r, obs0, obs2, obs0, obs3)
+    right_intersect  = circle_intersect_segment(h, k, r, obs1, obs2, obs1, obs3)
+    bottom_intersect = circle_intersect_segment(h, k, r, obs0, obs2, obs1, obs2)
+    top_intersect    = circle_intersect_segment(h, k, r, obs0, obs3, obs1, obs3)
 
     # Return true if the position is on or enclosed by the obstacle
     return left_intersect or right_intersect or bottom_intersect or top_intersect or \
          (h >= obs0 and h <= obs1 and k >= obs2 and k <= obs3)
+
+def position_available(position, obstacles, r):
+    for obs in obstacles:
+        if position_intersect(position, obs, r):
+            return False
+    return True
+
 
 # Does the position given by th1, th2 intersect any obstacle?
 def theta_intersect(th1, th2):

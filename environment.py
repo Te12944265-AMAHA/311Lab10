@@ -3,12 +3,13 @@ import math
 from visualize import *
 from PathFinder import *
 import random
+import copy
 
 # the map of one floor of the building
 class Floor(object):
     def __init__(self, width, height, floor=0):
-        self.width = width
-        self.height = height
+        self.width = width # (width of canvas map region)
+        self.height = height # (height of canvas map region)
         self.bins = []
         # obstacles include walls but exclude robots and bins
         self.obstacles = []
@@ -27,6 +28,12 @@ class Floor(object):
 
     def get_dump_pos(self):
         return self.dump_pos
+
+    def get_bins(self):
+        return self.bins
+
+    def get_chargers(self):
+        return self.chargers
 
     def get_available_chargers(self):
         c = []
@@ -60,8 +67,8 @@ class Floor(object):
 
     def initialize(self):
         # Add dump position
-        dump_pos = Position((140, 50), floor)
-        floor.add_dump_pos(dump_pos)
+        dump_pos = Position((140, 50), floor=self)
+        self.add_dump_pos(dump_pos)
         # Add obstacles. defined as (left_x, top_y, right_x, bottom_y) in tk frame
         self.obstacles = [(200, 0, 220, 210), (220, 190, 320, 210), (100, 100, 200, 120),
                           (280, 320, 300, 500), (300, 400, 450, 420), (100, 320, 280, 340),
@@ -70,18 +77,36 @@ class Floor(object):
         # Add bins
         bin_centers = [(440, 60), (320, 380), (580, 220), (640, 280), (780, 220)]
         for i in range(len(bin_centers)):
-            loaded = random.random() > 0.2 # the bin has 80% chance to be loaded
-            b = Bin(bin_centers[i], num=i, floor=self, loaded)
+            load = random.random() > 0.2 # the bin has 80% chance to be loaded
+            b = Bin(bin_centers[i], num=i, floor=self, loaded=load)
             self.add_bin(b)
         # Add chargers
         charger_centers = [(35, 340+40*i) for i in range(4)]
         for i in range(len(charger_centers)):
             c = Charger(charger_centers[i], num=i, floor=self)
             self.add_charger(c)
+
+    def get_available_pos(self, L, dx):
+        w = self.width
+        h = self.height
+        obstacles = copy.deepcopy(self.obstacles)
+        frame = [(-2,-2,w+1,-2),(-2,h,w+1,h+1),(-2,-1,-1,h),(w,-1,w+1,h)]
+        #obstacles.extend(frame)
+        pos_available = []
+        idx_available = []
+        r = L//2
+        for i in range(w//dx):
+            x = i * dx + dx//2
+            for j in range(h//dx):
+                y = j * dx + dx//2
+                if position_available((x, y), obstacles, r):
+                    pos_available.append((x, y))
+                    idx_available.append((i, j))
+        return pos_available, idx_available
         
 
     # draw the map of the floor (not including the robots/bins)
-    def draw(canvas):
+    def draw(self, canvas):
         # draw bin original pos
         for b in self.bins:
             x, y = b.original_pos
@@ -89,11 +114,11 @@ class Floor(object):
         # dumping area
         canvas.create_oval(100, 10, 180, 90, width=5) 
         # draw charging area
-        for c in self.charger:
+        for c in self.chargers:
             x, y = c.pos
             canvas.create_oval(x-15, y-15, x+15, y+15, width=2)
         # draw obstacles
-        for obs in self.obstacles)
+        for obs in self.obstacles:
             canvas.create_rectangle(obs, fill='black', width=0)
 
 
@@ -118,7 +143,7 @@ class Charger(Position):
 class Bin(Position):
     def __init__(self, pos, num=0, floor=None, loaded=False):
         super().__init__(pos, floor)
-        self.pos_original = pos
+        self.original_pos = pos
         self.loaded = loaded
         self.state = None # collect, carry, dump, None
         self.num = num # bin number
@@ -147,11 +172,11 @@ class Bin(Position):
         return self.loaded == True
 
     def draw(self, canvas):
-        if self.state == None:
-            if self.loaded == False:
-                draw_pixel(canvas, self.pos[0], self.pos[1], self.d, color='white', w=2, out='blue')
-            else:
-                draw_pixel(canvas, self.pos[0], self.pos[1], self.d, color='blue', w=0, out='blue')
+        x, y = self.pos
+        if self.loaded == False:
+            canvas.create_rectangle(x-10, y-10, x+10, y+10, width=2, outline='blue')
+        else:
+            canvas.create_rectangle(x-10, y-10, x+10, y+10, width=0, fill='blue')
 
 
 class Robot(Position):
@@ -162,12 +187,13 @@ class Robot(Position):
         self.state = None # move, collect, (*elevator,) dump, to_charge, charge, None
         self.error = False
         self.job = None # will be assigned a Bin
-        self.L = 20
-        self.dx = 10
+        self.L = 20 # wheelbase is 20 pixels
+        self.dx = 5 # descretization resolution
         self.battery = 10000
         self.low_power = False
         self.path = []
         self.timer = 0
+        self.on = True
 
     # current state is 'move'. takes in start and end Position objs and a Floor obj
     # end is a list of Position objs
@@ -198,7 +224,7 @@ class Robot(Position):
 
 
     def update_pos(self):
-        if self.state == 'move' or self.state == 'to_charger':
+        if self.state == 'move' or self.state == 'to_charge':
             if self.path != []:
                 self.pos = self.path[0]
                 self.path.pop(0)
@@ -206,8 +232,8 @@ class Robot(Position):
     def update_battery(self):
         if self.state == None or self.state == 'to_charge' or self.state == 'charge':
             return
-        self.battery -= random.randint(10, 35)
-
+        self.battery -= random.randint(20, 30)
+        self.low_power = self.battery < 100
 
     def update_state(self):
         if self.low_power == True and self.state != 'to_charge':
@@ -225,7 +251,6 @@ class Robot(Position):
                 self.state = None
                 self.battery = 10000
                 self.timer = 0
-        elif self.low_power == True and self.job = None and self.state = 'move'
         elif self.job == None:
             self.assign_job()
         elif self.state == 'move' and self.job != None and self.path == [] and self.job.state == None:
@@ -254,17 +279,81 @@ class Robot(Position):
             self.job.operate_bin(None)
             self.job = None
 
+    def update(self):
+        self.update_pos()
+        self.update_battery()
+        self.update_state()
+        self.on = not self.on
+
+    def draw(self, canvas):
+        color = 'green'
+        if self.error == True:
+            color = 'red'
+        elif self.low_power == True:
+            color = 'yellow'
+            if self.state == 'charge' and self.on:
+                color = 'green'
+        x, y = self.pos
+        canvas.create_rectangle(x-10, y-10, x+10, y+10, fill=color)
 
 
-# this environment has 1 floor and multiple bins and robots
+# this environment has 1 floor, 5 bins, 4 chargers, 1 dump pos, and 3 robots
 class Environment(object):
     def __init__(self):
-        floor = Floor(400, 600)
-        robot_pos = [(,),(,),(,)]
-        robots = {}
-        for i in range(3):
-            robots[i] = Robot(robot_pos[i], i, floor)
+        self.floor = Floor(500, 800)
+        self.floor.initialize()
+        self.dx = 10
+        robot_pos_available, robot_idx_available = self.floor.get_available_pos(20, self.dx)
+        self.idx_available = robot_idx_available
+        self.robots = {}
+        self.bins = self.floor.get_bins()
+        # for i in range(3):
+        #     robot_pos = random.choice(robot_pos_available)
+        #     self.robots[i] = Robot(robot_pos[i], i, floor)
+        self.start = False
+        
 
+    def draw_map(self, canvas):
+        for idx in self.idx_available:
+            draw_pixel(canvas, idx[0], idx[1], self.dx, color='yellow')
+        self.floor.draw(canvas)
+        
+
+
+    def start(self):
+        self.start = True
+    
+    def pause(self):
+        self.start = False
+
+    def update(self):
+        while self.start == True:
+            for robot in self.robots:
+                robot.update()
+            for b in self.bins:
+                b.update_pos()
+
+    def draw(self, canvas):
+        self.floor.draw(canvas)
+        for b in self.bins:
+            b.draw(canvas)
+        for robot in self.robots:
+            robot.draw()
+
+def run(w, h):
+    root = Tk()
+    root.resizable(width=False, height=False) # prevents resizing window
+    canvas = Canvas(root, width=w, height=h)
+    canvas.configure(bd=1, highlightthickness=0)
+    canvas.pack()
+
+    env = Environment()
+    env.draw_map(canvas)
+
+    root.mainloop()
+    print('Done test')
+
+run(1000, 500)
 
 
 
