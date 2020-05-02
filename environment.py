@@ -90,8 +90,8 @@ class Floor(object):
         w = self.width
         h = self.height
         obstacles = copy.deepcopy(self.obstacles)
-        frame = [(-2,-2,w+1,-2),(-2,h,w+1,h+1),(-2,-1,-1,h),(w,-1,w+1,h)]
-        #obstacles.extend(frame)
+        frame = [(-2,-2,w+1,-1),(-2,h,w+1,h+1),(-2,-1,-1,h),(w,-1,w+1,h)]
+        obstacles.extend(frame)
         pos_available = []
         idx_available = []
         r = L//2
@@ -107,6 +107,10 @@ class Floor(object):
 
     # draw the map of the floor (not including the robots/bins)
     def draw(self, canvas):
+        canvas.create_line(self.width, 1, self.width, self.height, width=2)
+        canvas.create_line(1, 1, self.width, 1, width=2)
+        canvas.create_line(1, self.height, self.width, self.height, width=2)
+        canvas.create_line(1, 1, 1, self.height, width=2)
         # draw bin original pos
         for b in self.bins:
             x, y = b.original_pos
@@ -165,7 +169,7 @@ class Bin(Position):
             #assert self.collector != None
             self.pos = self.collector.pos
 
-    def add_collector(self, robot):
+    def set_collector(self, robot):
         self.collector = robot
 
     def is_loaded(self):
@@ -180,7 +184,7 @@ class Bin(Position):
 
 
 class Robot(Position):
-    def __init__(self, pos, num=0, floor=None):
+    def __init__(self, pos, num=0, floor=None, cspace=None):
         super().__init__(pos, floor)
         self.num = num 
         self.loaded = False
@@ -188,12 +192,39 @@ class Robot(Position):
         self.error = False
         self.job = None # will be assigned a Bin
         self.L = 20 # wheelbase is 20 pixels
-        self.dx = 5 # descretization resolution
+        self.dx = 10 # descretization resolution
         self.battery = 10000
         self.low_power = False
         self.path = []
         self.timer = 0
         self.on = True
+        self.cspace = cspace
+
+    def getHashables(self):
+        return (self.num, ) # return a tuple of hashables
+
+    def __hash__(self):
+        return hash(self.getHashables())
+
+    def __eq__(self, other):
+        return (isinstance(other, Robot) and (self.x == other.x))
+
+    @staticmethod
+    def get_end_positions(end_P, original):
+        end_idx = []
+        if original == True:
+            if type(end_P) is list:
+                for en in end_P:
+                    end_idx.append(en.original_pos)
+            else:
+                end_idx.append(end_P.original_pos)
+        else: 
+            if type(end_P) is list:
+                for en in end_P:
+                    end_idx.append(en.pos)
+            else:
+                end_idx.append(end_P.pos)
+        return end_idx
 
     # current state is 'move'. takes in start and end Position objs and a Floor obj
     # end is a list of Position objs
@@ -201,27 +232,26 @@ class Robot(Position):
         if end == None or end == []:
             self.state = None
             self.job = None
-            return False
+            return -1
         width = self.floor.width
         height = self.floor.height
         #TODO: modify end
-        if original == False:
-            path = get_path(L, width, height, self.dx, self.pos, end.pos, self.floor.obstacles)
-        else: 
-            path = get_path(L, width, height, self.dx, self.pos, end.original_pos, self.floor.obstacles)
+        path, bin_num = get_path(self.cspace, self.dx, self.pos, Robot.get_end_positions(end, original))
         self.path = path
         if path == None:
             self.state = None
             self.job = None
-            return False
-        return True
+            return -1
+        return bin_num
 
 
     def assign_job(self):
+        print('assigning job for robot #%d'% (self.num))
         self.state = 'move'
-        self.job = self.floor.get_waiting_bins()
-        self.approach(b)
-
+        b = self.floor.get_waiting_bins()
+        bin_num = self.approach(b)
+        self.job = self.floor.bins[bin_num]
+        self.job.set_collector(self)
 
     def update_pos(self):
         if self.state == 'move' or self.state == 'to_charge':
@@ -294,41 +324,55 @@ class Robot(Position):
             if self.state == 'charge' and self.on:
                 color = 'green'
         x, y = self.pos
-        canvas.create_rectangle(x-10, y-10, x+10, y+10, fill=color)
+        canvas.create_oval(x-10, y-10, x+10, y+10, fill=color, width=0)
 
 
 # this environment has 1 floor, 5 bins, 4 chargers, 1 dump pos, and 3 robots
 class Environment(object):
     def __init__(self):
-        self.floor = Floor(500, 800)
+        self.floor = Floor(800, 500)
         self.floor.initialize()
         self.dx = 10
         robot_pos_available, robot_idx_available = self.floor.get_available_pos(20, self.dx)
+        self.robot_pos_available = robot_pos_available
         self.idx_available = robot_idx_available
-        self.robots = {}
+        self.cspace = None
+        self.robots = dict()
         self.bins = self.floor.get_bins()
-        # for i in range(3):
-        #     robot_pos = random.choice(robot_pos_available)
-        #     self.robots[i] = Robot(robot_pos[i], i, floor)
-        self.start = False
-        
+        self.running = False
 
+
+    def add_robots(self, num):
+        for i in range(num):
+            robot_pos = random.choice(self.robot_pos_available)
+            self.robots[i] = Robot(robot_pos, i, self.floor, cspace=self.cspace)
+        
+    # draw the config space
     def draw_map(self, canvas):
         for idx in self.idx_available:
             draw_pixel(canvas, idx[0], idx[1], self.dx, color='yellow')
-        self.floor.draw(canvas)
-        
+        self.floor.draw(canvas)  
+
+    def create_cspace(self):
+        w = self.floor.width // self.dx
+        h = self.floor.height // self.dx
+        print(w, h)
+        # all in tk frame
+        cspace = np.full((w, h), -2)
+        for idx in self.idx_available:
+            cspace[idx[0], idx[1]] = 0
+        self.cspace = cspace
 
 
     def start(self):
-        self.start = True
+        self.running = True
     
     def pause(self):
-        self.start = False
+        self.running = False
 
     def update(self):
-        while self.start == True:
-            for robot in self.robots:
+        if self.running == True:
+            for i, robot in self.robots.items():
                 robot.update()
             for b in self.bins:
                 b.update_pos()
@@ -337,21 +381,77 @@ class Environment(object):
         self.floor.draw(canvas)
         for b in self.bins:
             b.draw(canvas)
-        for robot in self.robots:
-            robot.draw()
+        for i, robot in self.robots.items():
+            robot.draw(canvas)
 
-def run(w, h):
+
+# Core animation code
+
+def init(data):
+    data.env = Environment()
+    data.env.create_cspace()
+    data.env.add_robots(1)
+    data.env.start()
+
+
+def mousePressed(event, data):
+    pass
+
+def redrawAll(canvas, data):
+    data.env.draw(canvas)
+
+def keyPressed(event, data):
+    pass
+
+def timerFired(data):
+    data.env.update()
+
+
+def run(width=1000, height=500):
+    def redrawAllWrapper(canvas, data):
+        canvas.delete(ALL)
+        canvas.create_rectangle(0, 0, data.width, data.height,
+                                fill='white', width=0)
+        redrawAll(canvas, data)
+        canvas.update()    
+
+    def mousePressedWrapper(event, canvas, data):
+        mousePressed(event, data)
+        redrawAllWrapper(canvas, data)
+
+    def keyPressedWrapper(event, canvas, data):
+        keyPressed(event, data)
+        redrawAllWrapper(canvas, data)
+
+    def timerFiredWrapper(canvas, data):
+        timerFired(data)
+        redrawAllWrapper(canvas, data)
+        # pause, then call timerFired again
+        canvas.after(data.timerDelay, timerFiredWrapper, canvas, data)
+
+    # Set up data and call init
+    class Struct(object): pass
+    data = Struct()
+    data.width = width
+    data.height = height
+    data.timerDelay = 200 # milliseconds
+    init(data)
+    # create the root and the canvas
     root = Tk()
     root.resizable(width=False, height=False) # prevents resizing window
-    canvas = Canvas(root, width=w, height=h)
-    canvas.configure(bd=1, highlightthickness=0)
+    canvas = Canvas(root, width=data.width, height=data.height)
+    canvas.configure(bd=0, highlightthickness=0)
     canvas.pack()
+    # set up events
+    root.bind("<Button-1>", lambda event:
+                            mousePressedWrapper(event, canvas, data))
+    root.bind("<Key>", lambda event:
+                            keyPressedWrapper(event, canvas, data))
+    timerFiredWrapper(canvas, data)
+    # and launch the app
+    root.mainloop()  # blocks until window is closed
+    print("bye!")
 
-    env = Environment()
-    env.draw_map(canvas)
-
-    root.mainloop()
-    print('Done test')
 
 run(1000, 500)
 
