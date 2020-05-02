@@ -531,8 +531,8 @@ def run(width=1100, height=500):
     root.mainloop()  # blocks until window is closed
     print("bye!")
 
-
-run(1100, 500)
+if __name__ == "__main__":
+    run(1100, 500)
 
 
 
