@@ -228,6 +228,9 @@ class Robot(Position):
     def __eq__(self, other):
         return (isinstance(other, Robot) and (self.x == other.x))
 
+    def __repr__(self):
+        return "Robot #%d" % self.num
+
     @staticmethod
     def get_end_positions(end_P, original):
         end_idx = []
@@ -334,7 +337,8 @@ class Robot(Position):
                 self.job.operate_bin('carry')
                 self.approach(self.floor.get_dump_pos())
                 self.timer = 0
-        elif self.state == 'move' and self.job != None and self.path == [] and self.job.state == 'carry' and self.job.loaded == True:
+        elif self.state == 'move' and self.job != None and self.path == [] \
+                    and self.job.state == 'carry' and self.job.loaded == True:
             self.state = 'dump'
             self.job.operate_bin('dump')
         elif self.state == 'dump':
@@ -345,7 +349,8 @@ class Robot(Position):
                 self.job.dump_bin()
                 self.approach(self.job, True) # go to the original pos of the bin
                 self.timer = 0
-        elif self.state == 'move' and self.job != None and self.path == [] and self.job.state == 'carry' and self.job.loaded == False:
+        elif self.state == 'move' and self.job != None and self.path == [] and \
+                        self.job.state == 'carry' and self.job.loaded == False:
             self.state = None
             self.job.collector = None
             self.job.operate_bin(None)
@@ -359,7 +364,16 @@ class Robot(Position):
         self.print_info()
 
     def print_info(self):
-        print('robot #%d: state = %s, job = %s, battery = %d, path=[]? %d' %(self.num, self.state, self.job, self.battery, self.path == []))
+        print('robot #%d: state = %s, job = %s, battery = %d, path=[]? %d' %(self.num, \
+                                    self.state, self.job, self.battery, self.path == []))
+
+    def get_robot_info(self):
+        return "%s\nState: %s\tJob: %s\nBattery: %s\tError: %d" % (self, self.state, 
+                                                self.job, self.battery, self.error)
+
+    def display_robot_info(self, canvas, center_pos):
+        info = self.get_robot_info()
+        canvas.create_text(center_pos, text=info, fill='gray26', font="Helvetica 14")
 
     def draw(self, canvas):
         color = 'SpringGreen2'
@@ -424,12 +438,23 @@ class Environment(object):
                 b.update_pos()
         self.timer += 1
 
+
+    def draw_buttons(self, canvas):
+        canvas.create_rectangle(850, 50, 930, 100, fill='RoyalBlue1', )
+        canvas.create_text(890, 75, text="Start", fill="black", font="Helvetica 16")
+        canvas.create_rectangle(950, 50, 1030, 100, fill='RoyalBlue1', )
+        canvas.create_text(990, 75, text="Pause", fill="black", font="Helvetica 16")
+
+
     def draw(self, canvas):
+        self.draw_buttons(canvas)
         self.floor.draw(canvas)
         for b in self.bins:
             b.draw(canvas)
         for i, robot in self.robots.items():
             robot.draw(canvas)
+            robot.display_robot_info(canvas, (950, 200+i*100))
+            
 
 
 # Core animation code
@@ -457,7 +482,7 @@ def timerFired(data):
         data.env.floor.load_free_bins()
 
 
-def run(width=1000, height=500):
+def run(width=1100, height=500):
     def redrawAllWrapper(canvas, data):
         canvas.delete(ALL)
         canvas.create_rectangle(0, 0, data.width, data.height,
@@ -503,7 +528,7 @@ def run(width=1000, height=500):
     print("bye!")
 
 
-run(1000, 500)
+run(1100, 500)
 
 
 
