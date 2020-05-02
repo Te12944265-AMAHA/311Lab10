@@ -167,12 +167,12 @@ def get_path(cspace, dx, start_position, end_positions):
     grids = grids.tolist()
     # Now we need to assign the free space with numbers
     assign_freespace(grids, start_idx, end_idx)
-    print('Done assign_freespace')
+    #print('Done assign_freespace')
 
     # Then we need to find a good path, which is a list of idx tuples
     # This list will then be passed to visualization function
     path, bin_num = find_path(grids, start_idx, end_idx)
-    print('Done find_path')
+    #print('Done find_path')
     if path == None: 
         print('path not found')
         return None

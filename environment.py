@@ -154,6 +154,9 @@ class Bin(Position):
         self.d = 5
         self.collector = None
 
+    def __repr__(self):
+        return "Bin #%d" % self.num
+
     def operate_bin(self, state):
         self.state = state 
 
@@ -168,6 +171,8 @@ class Bin(Position):
         if self.state == 'carry':
             #assert self.collector != None
             self.pos = self.collector.pos
+        elif self.state == None:
+            self.original_pos = self.pos
 
     def set_collector(self, robot):
         self.collector = robot
@@ -250,7 +255,9 @@ class Robot(Position):
         self.state = 'move'
         b = self.floor.get_waiting_bins()
         bin_num = self.approach(b)
-        self.job = self.floor.bins[bin_num]
+        if bin_num == -1:
+            return
+        self.job = b[bin_num] # bin_num is not the num of the Bin!
         self.job.set_collector(self)
 
     def update_pos(self):
@@ -266,22 +273,32 @@ class Robot(Position):
         self.low_power = self.battery < 100
 
     def update_state(self):
-        if self.low_power == True and self.state != 'to_charge':
-            if self.job != None:
-                self.job.operate_bin(None) # put down the bin
-            self.job = None
-            self.state = 'to_charge'
-            self.approach(self.floor.get_chargers()) 
-            self.timer = 0
-        elif self.state == 'to_charge' and self.path == []:
-            self.state = 'charge'
-        elif self.state == 'charge':
+        if self.state == 'charge':
+            #print('charging....................')
             self.timer += 1
             if self.timer > 20:
                 self.state = None
                 self.battery = 10000
+                self.low_power = False
                 self.timer = 0
+                #print('done charging@@@@@@@@@@@@@@@@@@@')
+
+        elif self.low_power == True and (self.state != 'to_charge'):
+            #print('here!!!!!!!!!!!!!!!--------------------------------')
+            if self.job != None:
+                self.job.operate_bin(None) # put down the bin
+                self.job.collector = None
+            self.job = None
+            self.state = 'to_charge'
+            self.approach(self.floor.get_random_charger()) 
+            self.timer = 0
+        elif self.state == 'to_charge' and self.path == []:
+            #print('here---------------------------------------')
+            self.state = 'charge'
+        elif self.state == 'to_charge' and self.path != []:
+            pass
         elif self.job == None:
+            #print('here')
             self.assign_job()
         elif self.state == 'move' and self.job != None and self.path == [] and self.job.state == None:
             self.state = 'collect'
@@ -311,9 +328,13 @@ class Robot(Position):
 
     def update(self):
         self.update_pos()
-        self.update_battery()
         self.update_state()
+        self.update_battery()
         self.on = not self.on
+        self.print_info()
+
+    def print_info(self):
+        print('robot #%d: state = %s, job = %s, battery = %d, path=[]? %d' %(self.num, self.state, self.job, self.battery, self.path == []))
 
     def draw(self, canvas):
         color = 'green'
@@ -434,7 +455,7 @@ def run(width=1000, height=500):
     data = Struct()
     data.width = width
     data.height = height
-    data.timerDelay = 200 # milliseconds
+    data.timerDelay = 50 # milliseconds
     init(data)
     # create the root and the canvas
     root = Tk()
