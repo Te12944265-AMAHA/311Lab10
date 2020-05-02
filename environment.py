@@ -131,7 +131,7 @@ class Robot(Position):
         self.state = None # move, collect, (*elevator,) dump, to_charge, charge, None
         self.error = False
         self.job = None # will be assigned a Bin
-        self.L = 5
+        self.L = 20
         self.dx = 10
         self.battery = 10000
         self.low_power = False

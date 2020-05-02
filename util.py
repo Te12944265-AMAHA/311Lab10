@@ -3,6 +3,81 @@ import matplotlib.pyplot as plt
 import math
 import copy
 
+##### Constants #####
+
+# End effector radius (assuming it's a circle)
+ee_rad = 0.4 # inches
+
+# Link lengths (inches)
+l1 = 3.75 
+l2 = 2.5 
+
+# Joint limits (radians)
+th1_low  = 0      
+th1_high = np.pi 
+
+th2_low  = -np.pi
+th2_high = np.pi
+
+# Discretization
+num_thetas_1 = 45
+num_thetas_2 = 90
+dth1 = (th1_high - th1_low)/num_thetas_1
+dth2 = (th2_high - th2_low)/num_thetas_2
+
+# Obstacle bounds (inches)
+# Defined as [left, right, bottom, top]
+obstacles = [[-4, -2, 4, 6], [1, 3, 5, 7], [-1, 1, 2, 3], [-1, 0, 1, 2]]
+
+
+# NOTE: all theta values use counter-clockwise as positive
+
+def fk(th1, th2):
+    # simply add the x-lengths and y-lengths of link 1 and link 2
+    x = l1*np.cos(th1) + l2*np.cos(th1 + th2)
+    y = l1*np.sin(th1) + l2*np.sin(th1 + th2)
+    return x, y
+
+def ik(x, y): # inches
+    # Reject if (x,y) is inaccessible because
+    #   -more than (l1 + l2) from the origin
+    #   -less than (l1 - l2) from the origin
+    #   -y is less than 0
+    dist = np.sqrt(x**2 + y**2);
+    if ( dist > l1 + l2 or dist < l1 - l2 or y < 0):
+        return np.nan, np.nan
+
+    # th2 = arccos((x^2 + y^2 - l1^2 - l2^2) / (2l1l2))
+    #   This gives 1 or 2 answers
+    arg = (dist**2 - l1**2 - l2**2) / (2*l1*l2)
+    th2_1 = np.arccos( arg ) #[0, pi]
+    th2_2 = -th2_1           #[-pi, 0]
+
+    # th1 = arctan2(y,x)-arcsin(l2sin(th2) / (sqrt(x^2 + y^2)))
+    #   This gives 1 answer per th2; convert to [-pi,pi]
+    #   arctan2 is [-pi,pi], arcsin is [-pi/2, pi/2]
+    arg_1 = l2 * np.sin(th2_1) / dist
+    arg_2 = l2 * np.sin(th2_2) / dist
+    th1_1 = np.arctan2(y, x) - np.arcsin( arg_1 ) #[-3pi/2, pi/2]
+    th1_2 = np.arctan2(y, x) - np.arcsin( arg_2 ) #[-3pi/2,i pi/2]
+
+    if (th1_1 <= -np.pi):
+        th1_1 += 2*np.pi
+    if (th1_2 <= -np.pi):
+        th1_2 += 2*np.pi
+
+    # Choose the pair with the LOWER MAGNITUDE valid th1
+    if   (th1_1 < th1_low or th1_1 > th1_high):
+        return th1_2, th2_2
+    elif (th1_2 < th1_low or th1_2 > th1_high):
+        return th1_1, th2_1
+    elif (th1_1 <= th1_2):
+        return th1_1, th2_1
+    elif (th1_2 < th1_1):
+        return th1_2, th2_2
+    else:
+        print("HOW?!?!")
+
 # Check if a circle with center (h, k) and radius ee_rad intersects
 # the line segment with endpoints (x0, y0) and (x1, y1)
 # (credits to FRC team Dawgma and Stack Overflow)
@@ -261,3 +336,7 @@ def visualize_path(cspace_bool, grid_list):
     plt.ylabel('Theta 2')
     plt.title('Configuration Space')
     plt.show()
+
+
+
+
