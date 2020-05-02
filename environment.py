@@ -455,7 +455,9 @@ class Environment(object):
             robot.draw(canvas)
             robot.display_robot_info(canvas, (950, 200+i*100))
             
-
+def in_region(area, x, y):
+    l, t, r, b = area
+    return x >= l and x <= r and y >= t and y <= b
 
 # Core animation code
 
@@ -463,11 +465,14 @@ def init(data):
     data.env = Environment()
     data.env.create_cspace()
     data.env.add_robots(3)
-    data.env.start()
 
 
 def mousePressed(event, data):
-    pass
+    if in_region((850, 50, 930, 100), event.x, event.y):
+        data.env.start()
+    elif in_region((950, 50, 1030, 100), event.x, event.y):
+        data.env.pause()
+
 
 def redrawAll(canvas, data):
     data.env.draw(canvas)
@@ -476,7 +481,6 @@ def keyPressed(event, data):
     pass
 
 def timerFired(data):
-    print(data.env.timer)
     data.env.update()
     if data.env.timer % 200 == 0:
         data.env.floor.load_free_bins()
