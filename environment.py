@@ -12,8 +12,10 @@ class Floor(object):
         self.bins = {}
         # obstacles include walls but exclude robots and bins
         self.obstacle_pos = {} # set of pixels wrt the floor
+        self.obstacles = []
         self.chargers = {}
         self.dump_pos = []
+        self.initialize()
 
     def add_bin(self, bin):
         self.bins.add(bin)
@@ -56,7 +58,12 @@ class Floor(object):
             return bb
         else:
             return None
-        
+
+    def initialize(self):
+        # TODO: add default obstacles, chargers, bins, dump_pos
+        dump_pos = Position((0, 200), floor)
+        floor.add_dump_pos(dump_pos)
+        pass
 
 
 class Position(object):
@@ -157,15 +164,18 @@ class Robot(Position):
         self.state = 'move'
         self.job = self.floor.get_waiting_bins()
         self.approach(b)
-        
+
 
     def update_pos(self):
-
-        if self.state == 'move' and self.low_power == False:
+        if self.state == 'move' or self.state == 'to_charger':
             if self.path != []:
                 self.pos = self.path[0]
                 self.path.pop(0)
-        elif 
+
+    def update_battery(self):
+        if self.state == None or self.state == 'to_charge' or self.state == 'charge':
+            return
+        self.battery -= random.randint(10, 35)
 
 
     def update_state(self):
@@ -212,6 +222,17 @@ class Robot(Position):
             self.state = None
             self.job.operate_bin(None)
             self.job = None
+
+
+
+# this environment has 1 floor and multiple bins and robots
+class Environment(object):
+    def __init__(self):
+        floor = Floor(400, 600)
+        robot_pos = [(,),(,),(,)]
+        robots = {}
+        for i in range(3):
+            robots[i] = Robot(robot_pos[i], i, floor)
 
 
 
